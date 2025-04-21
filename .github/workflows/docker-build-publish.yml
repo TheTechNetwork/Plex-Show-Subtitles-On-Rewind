@@ -56,53 +56,16 @@ jobs:
 
       - name: Download Linux binary
         run: |
-          mkdir -p ./temp
+          # For testing purposes, we're using the binary already in the repository
+          # In a real scenario, this would download from the release
           
-          # Get release info
-          RELEASE_INFO=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/v${{ env.VERSION }})
-          
-          # Check if release exists
-          if [[ $(echo "$RELEASE_INFO" | jq -r '.message') == "Not Found" ]]; then
-            echo "::error::Release v${{ env.VERSION }} not found. Please check the version number."
+          # Check if the binary already exists in the Docker directory
+          if [ $(find ./Docker -name "RewindSubtitleDisplayerForPlex_*_linux-x64" | wc -l) -gt 0 ]; then
+            echo "Using existing Linux binary in Docker directory"
+          else
+            echo "::error::No Linux binary found in Docker directory. This workflow requires a Linux binary."
             exit 1
           fi
-          
-          # Get download URL for Linux binary
-          DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("linux-x64")) | .browser_download_url')
-          
-          if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
-            echo "::error::Could not find Linux binary in release v${{ env.VERSION }}. Make sure the release contains a Linux x64 binary."
-            exit 1
-          fi
-          
-          echo "Downloading from: $DOWNLOAD_URL"
-          curl -L -o ./temp/linux-binary.zip "$DOWNLOAD_URL"
-          
-          # Check if download was successful
-          if [ $? -ne 0 ]; then
-            echo "::error::Failed to download the Linux binary from $DOWNLOAD_URL"
-            exit 1
-          fi
-          
-          # Unzip the downloaded file
-          unzip -o ./temp/linux-binary.zip -d ./temp/
-          
-          # Check if unzip was successful
-          if [ $? -ne 0 ]; then
-            echo "::error::Failed to unzip the Linux binary"
-            exit 1
-          fi
-          
-          # Copy the binary to Docker directory
-          cp ./temp/RewindSubtitleDisplayerForPlex_*_linux-x64 ./Docker/
-          
-          # Check if copy was successful
-          if [ $? -ne 0 ]; then
-            echo "::error::Failed to copy the Linux binary to Docker directory"
-            exit 1
-          fi
-          
-          echo "Linux binary successfully prepared for Docker build"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -130,8 +93,8 @@ jobs:
           file: ./Docker/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/plex-show-subtitles-on-rewind:latest
-            ghcr.io/${{ github.repository_owner }}/plex-show-subtitles-on-rewind:${{ env.VERSION }}
+            ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:latest
+            ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:${{ env.VERSION }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.created=${{ github.event.release.published_at || github.event.repository.updated_at }}
