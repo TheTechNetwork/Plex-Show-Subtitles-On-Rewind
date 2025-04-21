@@ -56,15 +56,44 @@ jobs:
 
       - name: Download Linux binary
         run: |
-          # For testing purposes, we're using the binary already in the repository
-          # In a real scenario, this would download from the release
-          
-          # Check if the binary already exists in the Docker directory
-          if [ $(find ./Docker -name "RewindSubtitleDisplayerForPlex_*_linux-x64" | wc -l) -gt 0 ]; then
-            echo "Using existing Linux binary in Docker directory"
+          # Download the Linux binary from the release
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            # Get the download URL for the Linux binary
+            DOWNLOAD_URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.event.release.tag_name }} | \
+                          jq -r '.assets[] | select(.name | contains("linux-x64")) | .browser_download_url')
+            
+            if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" ]]; then
+              echo "::error::Could not find Linux binary in release ${{ github.event.release.tag_name }}. Make sure the release contains a Linux x64 binary."
+              exit 1
+            fi
+            
+            # Download the binary
+            echo "Downloading Linux binary from $DOWNLOAD_URL"
+            curl -L -o ./Docker/RewindSubtitleDisplayerForPlex_${VERSION}_linux-x64 $DOWNLOAD_URL
+            chmod +x ./Docker/RewindSubtitleDisplayerForPlex_${VERSION}_linux-x64
           else
-            echo "::error::No Linux binary found in Docker directory. This workflow requires a Linux binary."
-            exit 1
+            # For workflow_dispatch, check if the binary already exists in the Docker directory
+            if [ $(find ./Docker -name "RewindSubtitleDisplayerForPlex_*_linux-x64" | wc -l) -gt 0 ]; then
+              echo "Using existing Linux binary in Docker directory"
+            else
+              # Try to download from the latest release
+              LATEST_RELEASE=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest)
+              if [[ $(echo "$LATEST_RELEASE" | jq -r '.message') == "Not Found" ]]; then
+                echo "::error::No releases found in the repository. Please create a release first or provide a Linux binary."
+                exit 1
+              fi
+              
+              DOWNLOAD_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | contains("linux-x64")) | .browser_download_url')
+              if [[ -z "$DOWNLOAD_URL" || "$DOWNLOAD_URL" == "null" ]]; then
+                echo "::error::Could not find Linux binary in the latest release. Please create a release with a Linux x64 binary."
+                exit 1
+              fi
+              
+              # Download the binary
+              echo "Downloading Linux binary from $DOWNLOAD_URL"
+              curl -L -o ./Docker/RewindSubtitleDisplayerForPlex_${VERSION}_linux-x64 $DOWNLOAD_URL
+              chmod +x ./Docker/RewindSubtitleDisplayerForPlex_${VERSION}_linux-x64
+            fi
           fi
 
       - name: Set up Docker Buildx

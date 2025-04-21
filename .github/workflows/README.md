@@ -1,5 +1,25 @@
 # GitHub Actions Workflows
 
+This directory contains GitHub Actions workflows for automating the build, release, and Docker image publishing processes.
+
+## Build and Release Workflow
+
+The `build-and-release.yml` workflow automates the process of building the application for multiple platforms and creating a GitHub release with the binaries.
+
+### How to use:
+
+1. Go to the "Actions" tab in the GitHub repository
+2. Select the "Build and Release" workflow
+3. Click "Run workflow"
+4. Enter the version number (e.g., `1.0.0`) and select whether it's a pre-release
+5. Click "Run workflow"
+
+The workflow will:
+- Build the application for Windows, Linux, and macOS
+- Create a GitHub release with the specified version
+- Upload the binaries to the release
+- Add release notes with download links
+
 ## Docker Build and Publish Workflow
 
 The `docker-build-publish.yml` workflow automates the process of building and publishing Docker images to GitHub Container Registry (GHCR) for this project.
