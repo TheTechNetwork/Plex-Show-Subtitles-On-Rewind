@@ -12,11 +12,8 @@ on:
         default: false
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    
+  build-windows:
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,37 +30,100 @@ jobs:
         run: |
           dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:Version=${{ github.event.inputs.version }}
 
+      - name: Prepare Windows asset
+        run: |
+          mkdir -p release-assets
+          if (Test-Path "bin/Release/net9.0/win-x64/publish/RewindSubtitleDisplayerForPlex.exe") {
+            Copy-Item "bin/Release/net9.0/win-x64/publish/RewindSubtitleDisplayerForPlex.exe" -Destination "release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe"
+          }
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-artifact
+          path: release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
       - name: Build for Linux (x64)
         run: |
           dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:Version=${{ github.event.inputs.version }}
+
+      - name: Prepare Linux asset
+        run: |
+          mkdir -p release-assets
+          if [ -f "bin/Release/net9.0/linux-x64/publish/RewindSubtitleDisplayerForPlex" ]; then
+            cp bin/Release/net9.0/linux-x64/publish/RewindSubtitleDisplayerForPlex release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
+            chmod +x release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
+          fi
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-artifact
+          path: release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
 
       - name: Build for macOS (x64)
         run: |
           dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:Version=${{ github.event.inputs.version }}
 
-      - name: Prepare release assets
+      - name: Prepare macOS asset
         run: |
           mkdir -p release-assets
-          
-          # Windows
-          if [ -f "bin/Release/net9.0/win-x64/publish/RewindSubtitleDisplayerForPlex.exe" ]; then
-            cp bin/Release/net9.0/win-x64/publish/RewindSubtitleDisplayerForPlex.exe release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe
-          fi
-          
-          # Linux
-          if [ -f "bin/Release/net9.0/linux-x64/publish/RewindSubtitleDisplayerForPlex" ]; then
-            cp bin/Release/net9.0/linux-x64/publish/RewindSubtitleDisplayerForPlex release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
-            chmod +x release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
-          fi
-          
-          # macOS
           if [ -f "bin/Release/net9.0/osx-x64/publish/RewindSubtitleDisplayerForPlex" ]; then
             cp bin/Release/net9.0/osx-x64/publish/RewindSubtitleDisplayerForPlex release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
             chmod +x release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
           fi
-          
-          # List the files
-          ls -la release-assets/
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-artifact
+          path: release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
+
+  create-release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: release-assets
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p combined-assets
+          find release-assets -type f -exec cp {} combined-assets/ \;
+          ls -la combined-assets/
 
       - name: Create Release
         id: create_release
@@ -74,7 +134,7 @@ jobs:
           draft: false
           prerelease: ${{ github.event.inputs.prerelease }}
           files: |
-            release-assets/*
+            combined-assets/*
           body: |
             ## Plex Show Subtitles On Rewind v${{ github.event.inputs.version }}
             
