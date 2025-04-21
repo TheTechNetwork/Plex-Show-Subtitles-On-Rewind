@@ -1,0 +1,94 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.0.0)'
+        required: true
+      prerelease:
+        description: 'Is this a pre-release?'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build for Windows (x64)
+        run: |
+          dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:Version=${{ github.event.inputs.version }}
+
+      - name: Build for Linux (x64)
+        run: |
+          dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:Version=${{ github.event.inputs.version }}
+
+      - name: Build for macOS (x64)
+        run: |
+          dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=true -p:Version=${{ github.event.inputs.version }}
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          
+          # Windows
+          if [ -f "bin/Release/net9.0/win-x64/publish/RewindSubtitleDisplayerForPlex.exe" ]; then
+            cp bin/Release/net9.0/win-x64/publish/RewindSubtitleDisplayerForPlex.exe release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe
+          fi
+          
+          # Linux
+          if [ -f "bin/Release/net9.0/linux-x64/publish/RewindSubtitleDisplayerForPlex" ]; then
+            cp bin/Release/net9.0/linux-x64/publish/RewindSubtitleDisplayerForPlex release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
+            chmod +x release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
+          fi
+          
+          # macOS
+          if [ -f "bin/Release/net9.0/osx-x64/publish/RewindSubtitleDisplayerForPlex" ]; then
+            cp bin/Release/net9.0/osx-x64/publish/RewindSubtitleDisplayerForPlex release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
+            chmod +x release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
+          fi
+          
+          # List the files
+          ls -la release-assets/
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: |
+            release-assets/*
+          body: |
+            ## Plex Show Subtitles On Rewind v${{ github.event.inputs.version }}
+            
+            ### Downloads
+            - Windows: [RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe](https://github.com/${{ github.repository }}/releases/download/v${{ github.event.inputs.version }}/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe)
+            - Linux: [RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64](https://github.com/${{ github.repository }}/releases/download/v${{ github.event.inputs.version }}/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64)
+            - macOS: [RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64](https://github.com/${{ github.repository }}/releases/download/v${{ github.event.inputs.version }}/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64)
+            
+            ### Docker
+            Docker images are automatically built and published to GitHub Container Registry:
+            ```
+            docker pull ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:${{ github.event.inputs.version }}
+            ```
+            or
+            ```
+            docker pull ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:latest
+            ```

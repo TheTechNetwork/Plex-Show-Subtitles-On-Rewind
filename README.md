@@ -95,6 +95,24 @@ For manual setup, follow the instructions [here](https://github.com/ThioJoe/Plex
 2. Under the latest release, look in the `Assets` dropdown (expand if necessary) to see the available versions of the app
    - Refer to the "Which file below do I need?" info in the release notes above the assets
 
+## For Developers
+
+### GitHub Actions Workflows
+
+This repository includes GitHub Actions workflows to automate building, releasing, and Docker image publishing:
+
+1. **Build and Release Workflow**: Builds the application for multiple platforms and creates a GitHub release with the binaries.
+   - Manually triggered from the Actions tab
+   - Builds for Windows, Linux, and macOS
+   - Creates a GitHub release with the binaries
+
+2. **Docker Build and Publish Workflow**: Builds and publishes a Docker image to GitHub Container Registry.
+   - Automatically triggered when a new release is published
+   - Manually triggered from the Actions tab
+   - Publishes Docker images to `ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind`
+
+For more details, see the [Workflows README](.github/workflows/README.md).
+
 ## Setup
 
 1.  **Connect to Plex**:
