@@ -36,24 +36,73 @@ jobs:
             VERSION="${VERSION#v}"  # Remove 'v' prefix if present
           else
             # Get latest release version if not specified
-            VERSION=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r .tag_name)
+            LATEST_RELEASE=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest)
+            if [[ $(echo "$LATEST_RELEASE" | jq -r '.message') == "Not Found" ]]; then
+              echo "::error::No releases found in the repository. Please create a release first or specify a version."
+              exit 1
+            fi
+            VERSION=$(echo "$LATEST_RELEASE" | jq -r .tag_name)
             VERSION="${VERSION#v}"  # Remove 'v' prefix if present
           fi
+          
+          if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
+            echo "::error::Could not determine a valid version. Please check releases or specify a version."
+            exit 1
+          fi
+          
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
 
       - name: Download Linux binary
         run: |
           mkdir -p ./temp
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/v${{ env.VERSION }} | jq -r '.assets[] | select(.name | contains("linux-x64")) | .browser_download_url')
-          if [ -z "$DOWNLOAD_URL" ]; then
-            echo "Could not find Linux binary in release v${{ env.VERSION }}"
+          
+          # Get release info
+          RELEASE_INFO=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/tags/v${{ env.VERSION }})
+          
+          # Check if release exists
+          if [[ $(echo "$RELEASE_INFO" | jq -r '.message') == "Not Found" ]]; then
+            echo "::error::Release v${{ env.VERSION }} not found. Please check the version number."
             exit 1
           fi
+          
+          # Get download URL for Linux binary
+          DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | contains("linux-x64")) | .browser_download_url')
+          
+          if [ -z "$DOWNLOAD_URL" ] || [ "$DOWNLOAD_URL" == "null" ]; then
+            echo "::error::Could not find Linux binary in release v${{ env.VERSION }}. Make sure the release contains a Linux x64 binary."
+            exit 1
+          fi
+          
           echo "Downloading from: $DOWNLOAD_URL"
           curl -L -o ./temp/linux-binary.zip "$DOWNLOAD_URL"
+          
+          # Check if download was successful
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to download the Linux binary from $DOWNLOAD_URL"
+            exit 1
+          fi
+          
+          # Unzip the downloaded file
           unzip -o ./temp/linux-binary.zip -d ./temp/
+          
+          # Check if unzip was successful
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to unzip the Linux binary"
+            exit 1
+          fi
+          
+          # Copy the binary to Docker directory
           cp ./temp/RewindSubtitleDisplayerForPlex_*_linux-x64 ./Docker/
+          
+          # Check if copy was successful
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to copy the Linux binary to Docker directory"
+            exit 1
+          fi
+          
+          echo "Linux binary successfully prepared for Docker build"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -64,6 +113,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify Docker build prerequisites
+        run: |
+          # Check if the Linux binary exists in the Docker directory
+          if [ $(find ./Docker -name "RewindSubtitleDisplayerForPlex_*_linux-x64" | wc -l) -eq 0 ]; then
+            echo "::error::Linux binary not found in Docker directory. This is required for the Docker build."
+            echo "Please ensure the release contains a Linux x64 binary with the correct naming format."
+            exit 1
+          fi
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
