@@ -1,6 +1,45 @@
 # Docker Instructions for RewindSubtitleDisplayerForPlex
 
-**Note:** This is a basic Docker setup requiring manual steps. A fully automated build process is not yet implemented.
+## Option 1: Use Pre-built Image from GitHub Container Registry (Recommended)
+
+The easiest way to run this application in Docker is to use the pre-built image from GitHub Container Registry:
+
+```bash
+# Pull the image
+docker pull ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:latest
+
+# Create a config directory
+mkdir -p ./config
+
+# Run the container
+docker run -d \
+  --name plex-subtitles \
+  -v ./config:/app/config \
+  ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:latest -auth-device-name Docker
+```
+
+Or with docker-compose:
+
+```yaml
+version: '3.8'
+
+services:
+  plex-rewind-subtitle-displayer:
+    image: ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:latest
+    container_name: plex_subtitle_displayer
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config
+    command:
+      - "-auth-device-name"
+      - "Docker"
+```
+
+Then follow steps 4-7 in the manual setup instructions below to complete the configuration.
+
+## Option 2: Manual Setup
+
+**Note:** This is a basic Docker setup requiring manual steps if you prefer to build the image yourself.
 
 **Prerequisites:**
 * Docker Desktop (or Docker Engine with Docker Compose) installed and running.

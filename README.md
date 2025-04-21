@@ -35,7 +35,44 @@ Once playback reaches the point where you started the rewind, it will **automati
 
 ### **Q:** Is there docker support?
 
-**A:** Yes but at the moment you'll need to set it up with some manual steps. There are instructions [here](https://github.com/ThioJoe/Plex-Show-Subtitles-On-Rewind/blob/master/Docker/Docker%20Instructions.md) and also see [this wiki article](https://github.com/ThioJoe/Plex-Show-Subtitles-On-Rewind/wiki/Running-it-On-a-NAS-in-Docker) for specific instructions for setup in Docker on a NAS
+**A:** Yes! You can use the Docker image from GitHub Container Registry (GHCR) or set it up manually:
+
+#### Option 1: Use the pre-built image from GHCR (recommended)
+
+```bash
+# Pull the image
+docker pull ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:latest
+
+# Create a config directory
+mkdir -p ./config
+
+# Run the container
+docker run -d \
+  --name plex-subtitles \
+  -v ./config:/app/config \
+  ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:latest -auth-device-name Docker
+```
+
+Or with docker-compose:
+
+```yaml
+version: '3.8'
+
+services:
+  plex-rewind-subtitle-displayer:
+    image: ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:latest
+    container_name: plex_subtitle_displayer
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config
+    command:
+      - "-auth-device-name"
+      - "Docker"
+```
+
+#### Option 2: Manual setup
+
+For manual setup, follow the instructions [here](https://github.com/ThioJoe/Plex-Show-Subtitles-On-Rewind/blob/master/Docker/Docker%20Instructions.md) and also see [this wiki article](https://github.com/ThioJoe/Plex-Show-Subtitles-On-Rewind/wiki/Running-it-On-a-NAS-in-Docker) for specific instructions for setup in Docker on a NAS.
 
 ### **Q: What platforms are supported?**
 
