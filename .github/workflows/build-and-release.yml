@@ -33,8 +33,14 @@ jobs:
       - name: Prepare Windows asset
         run: |
           mkdir -p release-assets
-          if (Test-Path "bin/Release/net9.0/win-x64/publish/RewindSubtitleDisplayerForPlex.exe") {
-            Copy-Item "bin/Release/net9.0/win-x64/publish/RewindSubtitleDisplayerForPlex.exe" -Destination "release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe"
+          # Find the executable (it might have version in the filename)
+          $WindowsExecutable = Get-ChildItem -Path "bin/Release/net9.0/win-x64/publish" -Filter "RewindSubtitleDisplayerForPlex*.exe" | Select-Object -First 1
+          if ($WindowsExecutable) {
+            Write-Host "Found Windows executable: $($WindowsExecutable.FullName)"
+            Copy-Item $WindowsExecutable.FullName -Destination "release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe"
+          } else {
+            Write-Host "ERROR: Windows executable not found!"
+            Get-ChildItem -Path "bin/Release/net9.0/win-x64/publish" -Recurse | Format-Table Name, Length, LastWriteTime
           }
 
       - name: Upload Windows artifact
@@ -42,6 +48,7 @@ jobs:
         with:
           name: windows-artifact
           path: release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe
+          if-no-files-found: error
 
   build-linux:
     runs-on: ubuntu-latest
@@ -64,9 +71,15 @@ jobs:
       - name: Prepare Linux asset
         run: |
           mkdir -p release-assets
-          if [ -f "bin/Release/net9.0/linux-x64/publish/RewindSubtitleDisplayerForPlex" ]; then
-            cp bin/Release/net9.0/linux-x64/publish/RewindSubtitleDisplayerForPlex release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
+          # Find the executable (it might have version in the filename)
+          LINUX_EXECUTABLE=$(find bin/Release/net9.0/linux-x64/publish -type f -executable -name "RewindSubtitleDisplayerForPlex*" | head -n 1)
+          if [ -n "$LINUX_EXECUTABLE" ]; then
+            echo "Found Linux executable: $LINUX_EXECUTABLE"
+            cp "$LINUX_EXECUTABLE" release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
             chmod +x release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
+          else
+            echo "ERROR: Linux executable not found!"
+            find bin/Release/net9.0/linux-x64/publish -type f -ls
           fi
 
       - name: Upload Linux artifact
@@ -74,6 +87,7 @@ jobs:
         with:
           name: linux-artifact
           path: release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
+          if-no-files-found: error
 
   build-macos:
     runs-on: macos-latest
@@ -96,9 +110,15 @@ jobs:
       - name: Prepare macOS asset
         run: |
           mkdir -p release-assets
-          if [ -f "bin/Release/net9.0/osx-x64/publish/RewindSubtitleDisplayerForPlex" ]; then
-            cp bin/Release/net9.0/osx-x64/publish/RewindSubtitleDisplayerForPlex release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
+          # Find the executable (it might have version in the filename)
+          MACOS_EXECUTABLE=$(find bin/Release/net9.0/osx-x64/publish -type f -perm +111 -name "RewindSubtitleDisplayerForPlex*" | head -n 1)
+          if [ -n "$MACOS_EXECUTABLE" ]; then
+            echo "Found macOS executable: $MACOS_EXECUTABLE"
+            cp "$MACOS_EXECUTABLE" release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
             chmod +x release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
+          else
+            echo "ERROR: macOS executable not found!"
+            find bin/Release/net9.0/osx-x64/publish -type f -ls
           fi
 
       - name: Upload macOS artifact
@@ -106,6 +126,7 @@ jobs:
         with:
           name: macos-artifact
           path: release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
+          if-no-files-found: error
 
   create-release:
     needs: [build-windows, build-linux, build-macos]
