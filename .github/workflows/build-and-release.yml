@@ -38,7 +38,7 @@ jobs:
           }
 
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows-artifact
           path: release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe
@@ -70,7 +70,7 @@ jobs:
           fi
 
       - name: Upload Linux artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux-artifact
           path: release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64
@@ -102,7 +102,7 @@ jobs:
           fi
 
       - name: Upload macOS artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: macos-artifact
           path: release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64
@@ -115,7 +115,7 @@ jobs:
     
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: release-assets
 
