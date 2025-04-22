@@ -1,4 +1,4 @@
-name: Build and Publish Docker Image
+name: Build and Publish Docker Image (Multi-Platform)
 
 on:
   release:
@@ -130,6 +130,14 @@ jobs:
             echo "::error::Linux binary failed to execute with --help flag. This binary appears to be invalid."
             echo "Please ensure the release contains a functional Linux x64 binary."
             exit 1
+          fi
+          
+          # Try running with --version flag
+          if ! "$LINUX_BINARY" --version; then
+            echo "::warning::Linux binary failed to execute with --version flag. This might be a problem."
+            # Not failing the build for this, as some versions might not support --version
+          else
+            echo "Version check passed!"
           fi
           
           echo "Linux binary test passed!"
