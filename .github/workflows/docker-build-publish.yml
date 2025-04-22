@@ -114,11 +114,25 @@ jobs:
       - name: Verify Docker build prerequisites
         run: |
           # Check if the Linux binary exists in the Docker directory
-          if [ $(find ./Docker -name "RewindSubtitleDisplayerForPlex_*_linux-x64" | wc -l) -eq 0 ]; then
+          LINUX_BINARY=$(find ./Docker -name "RewindSubtitleDisplayerForPlex_*_linux-x64" | head -n 1)
+          if [ -z "$LINUX_BINARY" ]; then
             echo "::error::Linux binary not found in Docker directory. This is required for the Docker build."
             echo "Please ensure the release contains a Linux x64 binary with the correct naming format."
             exit 1
           fi
+          
+          # Test the Linux binary to make sure it's a valid executable
+          echo "Testing Linux binary: $LINUX_BINARY"
+          chmod +x "$LINUX_BINARY"
+          
+          # Try running with --help flag
+          if ! "$LINUX_BINARY" --help; then
+            echo "::error::Linux binary failed to execute with --help flag. This binary appears to be invalid."
+            echo "Please ensure the release contains a functional Linux x64 binary."
+            exit 1
+          fi
+          
+          echo "Linux binary test passed!"
 
       - name: Build and push Docker image
         id: docker-build
@@ -128,6 +142,8 @@ jobs:
           file: ./Docker/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:latest
             ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:${{ env.VERSION }}
@@ -136,8 +152,6 @@ jobs:
             org.opencontainers.image.created=${{ github.event.release.published_at || github.event.repository.updated_at }}
             org.opencontainers.image.version=${{ env.VERSION }}
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
             
       - name: Test Docker image
         run: |
@@ -147,17 +161,31 @@ jobs:
           # Create a test config directory
           mkdir -p test-config
           
+          echo "Testing Docker image with --help flag..."
           # Run the container with --help flag to verify it works
-          docker run --rm \
+          if ! docker run --rm \
             -v $(pwd)/test-config:/app/config \
-            ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:${{ env.VERSION }} --help
+            ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:${{ env.VERSION }} --help; then
+            echo "::error::Docker container failed to run with --help flag"
+            exit 1
+          fi
           
-          # Check if the container can start properly
-          echo "Testing container startup..."
+          echo "Testing Docker image with --version flag..."
+          # Run the container with --version flag to verify it works
+          if ! docker run --rm \
+            -v $(pwd)/test-config:/app/config \
+            ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:${{ env.VERSION }} --version; then
+            echo "::error::Docker container failed to run with --version flag"
+            exit 1
+          fi
+          
+          # Check if the container can start properly with a short timeout
+          # This is just to verify it starts, not that it runs indefinitely
+          echo "Testing container startup (short run)..."
           CONTAINER_ID=$(docker run -d \
             -v $(pwd)/test-config:/app/config \
             ghcr.io/thetechnetwork/plex-show-subtitles-on-rewind:${{ env.VERSION }} \
-            --auth-device-name DockerTest)
+            --auth-device-name DockerTest --timeout 10)
           
           # Wait a moment for the container to start
           sleep 5
@@ -168,14 +196,21 @@ jobs:
           # Check if container is still running
           if [ "$(docker inspect -f '{{.State.Running}}' $CONTAINER_ID)" = "true" ]; then
             echo "Container is running successfully"
+            # Clean up
+            docker stop $CONTAINER_ID
+            docker rm $CONTAINER_ID
           else
-            echo "Container failed to start properly"
-            docker logs $CONTAINER_ID
-            exit 1
+            # Check exit code
+            EXIT_CODE=$(docker inspect -f '{{.State.ExitCode}}' $CONTAINER_ID)
+            if [ "$EXIT_CODE" = "0" ]; then
+              echo "Container exited cleanly with exit code 0"
+              docker rm $CONTAINER_ID
+            else
+              echo "::error::Container failed with exit code $EXIT_CODE"
+              docker logs $CONTAINER_ID
+              docker rm $CONTAINER_ID
+              exit 1
+            fi
           fi
-          
-          # Clean up
-          docker stop $CONTAINER_ID
-          docker rm $CONTAINER_ID
           
           echo "Docker image test passed!"
