@@ -41,6 +41,25 @@ jobs:
           } else {
             Write-Host "ERROR: Windows executable not found!"
             Get-ChildItem -Path "bin/Release/net9.0/win-x64/publish" -Recurse | Format-Table Name, Length, LastWriteTime
+            exit 1
+          }
+          
+      - name: Test Windows executable
+        run: |
+          Write-Host "Testing Windows executable..."
+          $ExePath = "release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_win-x64.exe"
+          
+          # Test if the executable runs with --help flag
+          try {
+            $process = Start-Process -FilePath $ExePath -ArgumentList "--help" -NoNewWindow -PassThru -Wait
+            if ($process.ExitCode -ne 0) {
+              Write-Host "ERROR: Executable returned non-zero exit code: $($process.ExitCode)"
+              exit 1
+            }
+            Write-Host "Windows executable test passed!"
+          } catch {
+            Write-Host "ERROR: Failed to execute Windows binary: $_"
+            exit 1
           }
 
       - name: Upload Windows artifact
@@ -80,7 +99,21 @@ jobs:
           else
             echo "ERROR: Linux executable not found!"
             find bin/Release/net9.0/linux-x64/publish -type f -ls
+            exit 1
           fi
+          
+      - name: Test Linux executable
+        run: |
+          echo "Testing Linux executable..."
+          EXECUTABLE="release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_linux-x64"
+          
+          # Test if the executable runs with --help flag
+          if ! $EXECUTABLE --help; then
+            echo "ERROR: Failed to execute Linux binary"
+            exit 1
+          fi
+          
+          echo "Linux executable test passed!"
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
@@ -119,7 +152,21 @@ jobs:
           else
             echo "ERROR: macOS executable not found!"
             find bin/Release/net9.0/osx-x64/publish -type f -ls
+            exit 1
           fi
+          
+      - name: Test macOS executable
+        run: |
+          echo "Testing macOS executable..."
+          EXECUTABLE="release-assets/RewindSubtitleDisplayerForPlex_${{ github.event.inputs.version }}_osx-x64"
+          
+          # Test if the executable runs with --help flag
+          if ! $EXECUTABLE --help; then
+            echo "ERROR: Failed to execute macOS binary"
+            exit 1
+          fi
+          
+          echo "macOS executable test passed!"
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
